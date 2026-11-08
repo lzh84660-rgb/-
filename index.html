@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心理评估量表演示平台</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- QRCode.js for dynamic QR generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"SF Pro Display"', '-apple-system', '"PingFang SC"', '"Noto Sans SC"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * { -webkit-font-smoothing: antialiased; }
+        body { background: #0b1329; color: #f8fafc; min-height: 100vh; }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.09);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .gradient-btn {
+            background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
+        }
+        .gradient-btn:hover {
+            background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+            box-shadow: 0 6px 20px rgba(2, 132, 199, 0.6);
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-only { display: block !important; }
+            .glass-panel, .glass-card {
+                background: white !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                color: black !important;
+            }
+        }
+    </style>
+</head>
+<body class="flex flex-col justify-between min-h-screen">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-50 glass-panel border-b border-white/10 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
+            <!-- Logo -->
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="showSection('dashboard')">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-sky-500/30">
+                    <i class="fa-solid fa-notes-medical"></i>
+                </div>
+                <div>
+                    <h1 class="text-base font-bold text-white tracking-wide">MindCare Master</h1>
+                    <p class="text-[10px] text-sky-400 font-medium">心理量表分发与诊疗诊断平台</p>
+                </div>
+            </div>
+
+            <!-- Role View Switcher -->
+            <div class="flex items-center space-x-2 bg-black/40 p-1 rounded-full border border-white/10">
+                <button id="mode-admin" onclick="switchRole('admin')" class="px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-sky-600 shadow transition-all">
+                    <i class="fa-solid fa-lock mr-1 text-[10px]" id="admin-lock-icon"></i> 咨询师端（发布与数据）
+                </button>
+                <button id="mode-patient" onclick="switchRole('patient')" class="px-4 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white transition-all">
+                    <i class="fa-solid fa-mobile-screen-button mr-1"></i> 患者/来访者答题视角
+                </button>
+                <button id="btn-lock-now" onclick="lockAdminSession()" title="一键锁定咨询师端" class="w-7 h-7 rounded-full bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 flex items-center justify-center transition-all border border-white/10">
+                    <i class="fa-solid fa-key text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Dynamic Content Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
+
+        <!-- ================= PASSWORD VERIFICATION MODAL ================= -->
+        <div id="modal-passcode" class="fixed inset-0 bg-black/80 backdrop-blur-xl z-[150] hidden flex items-center justify-center p-4">
+            <div class="glass-panel rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-5 border border-white/20 text-center relative shadow-2xl">
+                <div class="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-400 flex items-center justify-center text-xl mx-auto">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white" id="passcode-modal-title">咨询师身份验证</h3>
+                    <p class="text-xs text-slate-400 mt-1" id="passcode-modal-subtitle">访问患者报告与管理控制台需输入安全密码</p>
+                </div>
+
+                <div class="space-y-3">
+                    <input type="password" id="input-passcode" maxlength="16" placeholder="请输入安全密码 (默认: Kk10100101)" class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-center text-base font-mono text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 tracking-widest">
+                    <p id="passcode-error" class="text-[11px] text-rose-400 hidden">密码错误，默认密码为 Kk10100101</p>
+                </div>
+
+                <div class="space-y-2 pt-2">
+                    <button onclick="verifyAdminPasscode()" class="w-full gradient-btn py-3 rounded-xl text-white font-semibold text-xs">
+                        解锁控制台
+                    </button>
+                    <button onclick="openChangePasscodeUI()" class="text-[11px] text-slate-400 hover:text-sky-300 block w-full text-center py-1">
+                        修改咨询师密码
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 1. CONSULTANT ADMIN DASHBOARD ================= -->
+        <section id="sec-dashboard" class="space-y-8">
+            <!-- Header Banner -->
+            <div class="glass-panel rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border border-white/15">
+                <div class="space-y-2">
+                    <div class="flex items-center space-x-2">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                            公开测试演示版
+                        </span>
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> 请勿输入真实患者信息
+                        </span>
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-extrabold text-white">心理量表分发控制台</h2>
+                    <p class="text-xs sm:text-sm text-slate-300 max-w-2xl">
+                        本演示仅在当前浏览器本地保存测试记录，不会在设备间同步。请勿输入真实姓名、联系方式、病历或其他健康信息。
+                    </p>
+                </div>
+
+                <div class="flex items-center space-x-4 bg-white/5 p-4 rounded-2xl border border-white/10 shrink-0">
+                    <div class="text-center px-3 border-r border-white/10">
+                        <span class="block text-2xl font-black text-sky-400" id="stat-total-sent">0</span>
+                        <span class="text-[10px] text-slate-400">已发度量</span>
+                    </div>
+                    <div class="text-center px-3">
+                        <span class="block text-2xl font-black text-emerald-400" id="stat-completed">0</span>
+                        <span class="text-[10px] text-slate-400">已回收报告</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Split Layout: Scales Store vs Patient Submissions -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                <!-- Left 2 Cols: Scale Library & Dispatcher -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-white flex items-center">
+                            <i class="fa-solid fa-list-check text-sky-400 mr-2"></i> 选择量表并分发给病人
+                        </h3>
+                        <span class="text-xs text-slate-400">选择后可生成二维码发给对方</span>
+                    </div>
+
+                    <!-- Scale Cards List -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="admin-scales-grid">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Right 1 Col: Recent Patient Reports Records -->
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-bold text-white flex items-center">
+                            <i class="fa-solid fa-square-poll-vertical text-emerald-400 mr-2"></i> 来访者提交记录
+                        </h3>
+                        <button onclick="clearAllData()" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">
+                            清空
+                        </button>
+                    </div>
+
+                    <div class="glass-panel rounded-3xl p-4 space-y-3 min-h-[400px]" id="patient-records-list">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 2. QR CODE / SHARE MODAL ================= -->
+        <div id="modal-share" class="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
+            <div class="glass-panel rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 border border-white/20 relative">
+                <button onclick="closeShareModal()" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 flex items-center justify-center">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+
+                <div class="text-center space-y-2">
+                    <span id="share-scale-category" class="px-3 py-1 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                        量表分发
+                    </span>
+                    <h3 id="share-scale-title" class="text-xl font-bold text-white">PHQ-9 抑郁自评量表</h3>
+                    <p class="text-xs text-slate-300">请让来访者用手机扫描下方二维码，或复制链接发送给来访者</p>
+                </div>
+
+                <!-- QR Code Display Box -->
+                <div class="bg-white p-5 rounded-2xl flex flex-col items-center justify-center space-y-3 shadow-inner">
+                    <div id="qrcode-container" class="w-44 h-44 flex items-center justify-center"></div>
+                    <span class="text-[11px] text-gray-500 font-mono font-medium">手机扫码直接答题</span>
+                </div>
+
+                <!-- Patient Identity Note Input -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-300">来访者姓名 / 病案号备注 (可选)：</label>
+                    <input type="text" id="share-patient-name" placeholder="例如：张先生 (病案号: 20261108)" class="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400">
+                </div>
+
+                <!-- Direct Actions -->
+                <div class="space-y-2.5 pt-2">
+                    <button onclick="copyShareLink()" class="w-full gradient-btn py-3 rounded-xl text-white font-semibold text-xs flex items-center justify-center space-x-2">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>复制来访者答题链接</span>
+                    </button>
+                    <button onclick="simulatePatientStart()" class="w-full py-2.5 rounded-xl glass-card text-sky-300 font-semibold text-xs border border-sky-500/30 hover:text-white">
+                        <i class="fa-solid fa-play mr-1.5"></i> 直接以该来访者身份开始答题
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 3. PATIENT QUIZ INTERFACE ================= -->
+        <section id="sec-patient-quiz" class="hidden max-w-2xl mx-auto space-y-6">
+            <div class="glass-panel rounded-3xl p-6 sm:p-10 space-y-8 relative border border-white/15">
+                <!-- Quiz Banner -->
+                <div class="border-b border-white/10 pb-5 flex justify-between items-start">
+                    <div>
+                        <span id="quiz-patient-tag" class="text-xs font-semibold text-sky-400 block mb-1">受邀评估：张先生</span>
+                        <h2 id="quiz-scale-title" class="text-xl font-bold text-white">PHQ-9 抑郁自评量表</h2>
+                    </div>
+                    <span id="quiz-badge" class="px-3 py-1 rounded-full text-[11px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                        答题中
+                    </span>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-semibold text-slate-400">
+                        <span>第 <span id="quiz-q-current" class="text-white">1</span> / <span id="quiz-q-total">9</span> 题</span>
+                        <span id="quiz-progress-percent" class="text-sky-400">11%</span>
+                    </div>
+                    <div class="w-full bg-white/10 h-2.5 rounded-full overflow-hidden p-0.5 border border-white/10">
+                        <div id="quiz-progress-fill" class="bg-gradient-to-r from-sky-400 to-blue-600 h-full rounded-full transition-all duration-300" style="width: 11%;"></div>
+                    </div>
+                </div>
+
+                <!-- Question Title -->
+                <div class="py-2 space-y-2">
+                    <span id="quiz-instruction" class="text-xs text-slate-400 block">在过去两周内，您受以下问题困扰的频率是？</span>
+                    <h3 id="quiz-question-text" class="text-lg sm:text-xl font-bold text-white leading-snug">
+                        1. 做任何事都提不起劲，或感到毫无乐趣
+                    </h3>
+                </div>
+
+                <!-- Question Options List -->
+                <div id="quiz-options-wrapper" class="space-y-3">
+                    <!-- Options JS -->
+                </div>
+
+                <!-- Buttons -->
+                <div class="flex justify-between items-center pt-4 border-t border-white/10">
+                    <button id="quiz-btn-prev" onclick="prevQuestion()" class="px-5 py-2.5 rounded-xl glass-card text-xs font-semibold text-slate-300 hover:text-white disabled:opacity-30">
+                        <i class="fa-solid fa-chevron-left mr-1"></i> 上一题
+                    </button>
+                    <span class="text-[11px] text-slate-400">点击选项自动跳转下一题</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 4. CLINICAL DIAGNOSTIC REPORT ================= -->
+        <section id="sec-report" class="hidden max-w-3xl mx-auto space-y-6">
+            <!-- Action Bar -->
+            <div class="flex justify-between items-center no-print">
+                <button onclick="showSection('dashboard')" class="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1">
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i> 返回管理控制台
+                </button>
+                <button onclick="window.print()" class="gradient-btn px-5 py-2.5 rounded-full text-white text-xs font-semibold flex items-center space-x-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>打印 / 导出 PDF 诊疗报告</span>
+                </button>
+            </div>
+
+            <!-- Report Card -->
+            <div class="glass-panel rounded-3xl p-6 sm:p-10 space-y-8 border border-white/15">
+                <div class="border-b border-white/10 pb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <span class="text-xs font-bold text-sky-400 tracking-wider uppercase block">MindCare Clinical Diagnostic Report</span>
+                        <h2 id="rep-scale-name" class="text-2xl font-bold text-white mt-1">PHQ-9 抑郁自评量表临床报告</h2>
+                        <p class="text-xs text-slate-400 mt-1">来访者：<strong id="rep-patient-name" class="text-white">张先生</strong> | 测评时间：<span id="rep-timestamp">2026-11-08</span></p>
+                    </div>
+
+                    <div class="bg-white/10 px-5 py-3 rounded-2xl border border-white/15 text-center shrink-0">
+                        <span class="text-[10px] text-slate-400 font-medium block">评估总分</span>
+                        <span id="rep-score-num" class="text-3xl font-black text-sky-400">14</span>
+                        <span id="rep-score-max" class="text-[10px] text-slate-400 block">/ 分</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3 p-4 rounded-2xl bg-white/5 border border-white/10">
+                    <i class="fa-solid fa-notes-medical text-xl text-sky-400"></i>
+                    <div>
+                        <span class="text-xs text-slate-400 block">临床诊断提示等级：</span>
+                        <span id="rep-severity-tag" class="text-sm font-bold text-amber-300">
+                            中度抑郁倾向
+                        </span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-sm font-bold text-white flex items-center">
+                        <i class="fa-solid fa-microscope text-sky-400 mr-2"></i> 结果深度解析
+                    </h3>
+                    <p id="rep-description" class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-white/5 p-4 rounded-2xl border border-white/10">
+                        根据答题数据分析，来访者当前表现出中度的情绪低落与疲惫感。
+                    </p>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 class="text-sm font-bold text-white flex items-center">
+                        <i class="fa-solid fa-user-doctor text-emerald-400 mr-2"></i> 临床干预建议
+                    </h3>
+                    <div id="rep-recs-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <!-- Recs JS -->
+                    </div>
+                </div>
+
+                <div class="pt-8 border-t border-white/10 flex justify-between items-end text-xs text-slate-400">
+                    <div>
+                        <p>评估工具：MindCare Master 标准量表引擎</p>
+                        <p class="text-[10px] text-slate-500">本报告供心理咨询师与专业医师参考，不作为唯一精神科诊断证明。</p>
+                    </div>
+                    <div class="text-right space-y-1">
+                        <p>主诊 / 评估医师签名：________________</p>
+                        <p>日期：2026年11月08日</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 text-center text-xs text-slate-500 border-t border-white/5 no-print">
+        <p>© 2026 MindCare Master 心理诊疗量表发布平台 · 极速分发与评估系统</p>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        const CLINIC_SCALES = {
+            'phq-9': {
+                id: 'phq-9',
+                name: 'PHQ-9 抑郁自评量表',
+                shortName: '抑郁评估',
+                category: '情绪障碍',
+                questionsCount: 9,
+                description: '国际标准化抑郁筛选量表，用于评估过去两周情绪低落、睡眠障碍与精力减退。',
+                instruction: '在过去两周内，您受以下问题困扰的频率是？',
+                options: [
+                    { label: '完全没有', score: 0 },
+                    { label: '有几天', score: 1 },
+                    { label: '一半以上的天数', score: 2 },
+                    { label: '几乎每天', score: 3 }
+                ],
+                questions: [
+                    "做任何事都提不起劲，或感到毫无乐趣",
+                    "感到情绪低落、沮丧或绝望",
+                    "入睡困难、睡不安稳或睡眠过多",
+                    "感到疲倦或精力不足",
+                    "食欲不振或吃得太多",
+                    "对自己感到失望，或觉得自己很失败",
+                    "专注力困难，例如看书或看电视时无法集中注意力",
+                    "动作或说话速度缓慢；或者相反，躁动不安无法静坐",
+                    "产生过“不如死掉”或伤害自己的念头"
+                ],
+                evaluations: [
+                    { min: 0, max: 4, severity: '情绪良好 (无明显抑郁)', description: '来访者心理状态稳健，未见显著低落症状。', recs: ['维持正常作息与生活节奏'] },
+                    { min: 5, max: 9, severity: '轻度抑郁倾向', description: '存在轻微情绪低落或疲惫，多与短期压力相关。', recs: ['建议增加有氧运动', '自我情绪觉察日志'] },
+                    { min: 10, max: 14, severity: '中度抑郁倾向', description: '情绪低落与疲惫较为明显，对日常工作生活有一定干扰。', recs: ['建议安排心理咨询对话', '认知行为 CPT 疗法引导'] },
+                    { min: 15, max: 27, severity: '重度抑郁倾向', description: '身心负荷处于高危区间，伴随显著功能损害。', recs: ['建议前往精神心理科进行临床评估', '家属密切关怀'] }
+                ]
+            },
+            'gad-7': {
+                id: 'gad-7',
+                name: 'GAD-7 广泛性焦虑量表',
+                shortName: '焦虑评估',
+                category: '应激与焦虑',
+                questionsCount: 7,
+                description: '评估过去两周过度担忧、紧张不宁及惊恐体验的标准化量表。',
+                instruction: '在过去两周内，您受以下问题困扰的频率是？',
+                options: [
+                    { label: '完全没有', score: 0 },
+                    { label: '有几天', score: 1 },
+                    { label: '一半以上的天数', score: 2 },
+                    { label: '几乎每天', score: 3 }
+                ],
+                questions: [
+                    "感到神经紧张、焦虑或特别恐惧",
+                    "无法停止或无法控制担忧",
+                    "对各种各样的事情担忧过多",
+                    "很难放松下来",
+                    "由于不安而无法静坐",
+                    "变得容易烦躁或急躁",
+                    "感到好像将有可怕的事情发生"
+                ],
+                evaluations: [
+                    { min: 0, max: 4, severity: '无明显焦虑', description: '情绪稳定，应激状态控制良好。', recs: ['保持现状'] },
+                    { min: 5, max: 9, severity: '轻度焦虑', description: '存在轻度紧张情绪，对功能无严重干扰。', recs: ['腹式呼吸放松训练'] },
+                    { min: 10, max: 14, severity: '中度焦虑', description: '焦虑体验显著，伴有自主神经功能紧绷。', recs: ['建议专业心理咨询介入'] },
+                    { min: 15, max: 21, severity: '重度焦虑', description: '高强度焦虑，需要精神医学临床干预。', recs: ['建议结合医学评估与药物指导'] }
+                ]
+            },
+            'scl-30': {
+                id: 'scl-30',
+                name: 'SCL-90 综合心理健康诊断 (精炼版)',
+                shortName: '综合心理诊断',
+                category: '多维临床',
+                questionsCount: 15,
+                description: '评估躯体化、强迫、人际敏感、抑郁与焦虑等综合精神卫生状态。',
+                instruction: '根据您过去一周内的实际感受选择：',
+                options: [
+                    { label: '从无困扰', score: 1 },
+                    { label: '轻度困扰', score: 2 },
+                    { label: '中度困扰', score: 3 },
+                    { label: '严重困扰', score: 4 }
+                ],
+                questions: [
+                    "头痛、头晕或身体肌肉酸痛",
+                    "脑子里总反复出现毫无意义的想法",
+                    "容易感到感情受伤害，觉得别人不理解自己",
+                    "感到前途茫茫、心灰意冷",
+                    "突然感到无缘无故的惊恐或害怕",
+                    "胸闷、心慌或心跳过快",
+                    "做事情必须反复检查核对才能放心",
+                    "在公共场合感到非必要的害羞或不自在",
+                    "感到孤单不安，即使在人群中也感到孤独",
+                    "感到神经紧绷，无法放松身心",
+                    "恶心、胃痛或肠胃不适感",
+                    "容易因为一点小事发脾气",
+                    "觉得别人在背后议论您",
+                    "感到悲伤、常常想哭",
+                    "觉得生活毫无乐趣"
+                ],
+                evaluations: [
+                    { min: 15, max: 25, severity: '整体心理健康良好', description: '综合身心指标处于健全水平。', recs: ['保持良好生活作息'] },
+                    { min: 26, max: 45, severity: '存在中度心理困扰', description: '在个别维度上存在躯体应激或情绪起伏。', recs: ['进行针对性心理减压'] },
+                    { min: 46, max: 60, severity: '重度心理负荷', description: '多维度指标偏高，建议全面临床评估。', recs: ['建议寻求心理门诊协助'] }
+                ]
+            }
+        };
+
+        let activeScale = null;
+        let activePatientName = '匿名来访者';
+        let currentQIdx = 0;
+        let patientAnswers = [];
+        let qrCodeObj = null;
+
+        let isAdminUnlocked = false;
+        const DEFAULT_PASSCODE = 'Kk10100101';
+
+        window.onload = function() {
+            renderAdminScales();
+            renderPatientRecords();
+
+            // Check URL query parameters for direct patient test routing
+            const urlParams = new URLSearchParams(window.location.search);
+            const scaleId = urlParams.get('scale');
+            if (scaleId && CLINIC_SCALES[scaleId]) {
+                activeScale = CLINIC_SCALES[scaleId];
+                activePatientName = '受邀来访者';
+                startPatientQuiz();
+            } else {
+                switchRole('patient');
+            }
+        };
+
+        function getSavedPasscode() {
+            return localStorage.getItem('mindcare_admin_pin') || DEFAULT_PASSCODE;
+        }
+
+        function checkAdminAuth(onSuccess) {
+            if (isAdminUnlocked) {
+                onSuccess();
+                return;
+            }
+            document.getElementById('input-passcode').value = '';
+            document.getElementById('passcode-error').classList.add('hidden');
+            document.getElementById('modal-passcode').classList.remove('hidden');
+            window.pendingAuthSuccess = onSuccess;
+        }
+
+        function verifyAdminPasscode() {
+            const input = document.getElementById('input-passcode').value.trim();
+            const actualPass = getSavedPasscode();
+
+            if (input === actualPass) {
+                isAdminUnlocked = true;
+                document.getElementById('modal-passcode').classList.add('hidden');
+                document.getElementById('admin-lock-icon').className = 'fa-solid fa-lock-open mr-1 text-[10px] text-emerald-400';
+                if (window.pendingAuthSuccess) window.pendingAuthSuccess();
+            } else {
+                document.getElementById('passcode-error').classList.remove('hidden');
+            }
+        }
+
+        function lockAdminSession() {
+            isAdminUnlocked = false;
+            document.getElementById('admin-lock-icon').className = 'fa-solid fa-lock mr-1 text-[10px] text-amber-400';
+            switchRole('patient');
+        }
+
+        function openChangePasscodeUI() {
+            const oldPin = prompt('请输入当前咨询师密码：');
+            if (oldPin === getSavedPasscode()) {
+                const newPin = prompt('请输入设置的新密码（最长16位）：');
+                if (newPin && newPin.trim().length > 0) {
+                    localStorage.setItem('mindcare_admin_pin', newPin.trim());
+                    alert('密码修改成功！');
+                    document.getElementById('modal-passcode').classList.add('hidden');
+                }
+            } else if (oldPin !== null) {
+                alert('原密码错误！');
+            }
+        }
+
+        function showSection(secId) {
+            if (secId === 'dashboard' && !isAdminUnlocked) {
+                checkAdminAuth(() => showSection('dashboard'));
+                return;
+            }
+            document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+            const target = document.getElementById(`sec-${secId}`);
+            if (target) target.classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function switchRole(role) {
+            if (role === 'admin') {
+                checkAdminAuth(() => {
+                    document.getElementById('mode-admin').className = 'px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-sky-600 shadow';
+                    document.getElementById('mode-patient').className = 'px-4 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white';
+                    showSection('dashboard');
+                });
+            } else {
+                document.getElementById('mode-admin').className = 'px-4 py-1.5 rounded-full text-xs font-semibold text-slate-300 hover:text-white';
+                document.getElementById('mode-patient').className = 'px-4 py-1.5 rounded-full text-xs font-semibold text-white bg-sky-600 shadow';
+                if (!activeScale) openShareModal('phq-9');
+                else showSection('patient-quiz');
+            }
+        }
+
+        function renderAdminScales() {
+            const container = document.getElementById('admin-scales-grid');
+            container.innerHTML = '';
+
+            Object.values(CLINIC_SCALES).forEach(scale => {
+                container.innerHTML += `
+                    <div class="glass-card rounded-2xl p-5 flex flex-col justify-between space-y-4 border border-white/10">
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/20 text-sky-300 border border-sky-400/30">
+                                    ${scale.category}
+                                </span>
+                                <span class="text-[10px] text-slate-400 font-mono">${scale.questionsCount} 题</span>
+                            </div>
+                            <h4 class="text-base font-bold text-white">${scale.name}</h4>
+                            <p class="text-xs text-slate-300 line-clamp-2">${scale.description}</p>
+                        </div>
+
+                        <div class="pt-3 border-t border-white/10 flex justify-between items-center">
+                            <button onclick="openShareModal('${scale.id}')" class="gradient-btn px-4 py-2 rounded-xl text-white text-xs font-semibold flex items-center gap-1.5">
+                                <i class="fa-solid fa-qrcode"></i>
+                                <span>发布给病人</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function openShareModal(scaleId) {
+            activeScale = CLINIC_SCALES[scaleId];
+            document.getElementById('share-scale-title').innerText = activeScale.name;
+            document.getElementById('share-scale-category').innerText = activeScale.category;
+            document.getElementById('modal-share').classList.remove('hidden');
+
+            const qrContainer = document.getElementById('qrcode-container');
+            qrContainer.innerHTML = '';
+
+            let baseUrl = window.location.href.split('#')[0].split('?')[0];
+            if (baseUrl.startsWith('file://')) {
+                baseUrl = 'https://mindcare.netlify.app/index.html';
+            }
+            const shareUrl = `${baseUrl}?scale=${scaleId}`;
+
+            qrCodeObj = new QRCode(qrContainer, {
+                text: shareUrl,
+                width: 160,
+                height: 160,
+                colorDark: "#0f172a",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+
+        function closeShareModal() {
+            document.getElementById('modal-share').classList.add('hidden');
+        }
+
+        function copyShareLink() {
+            let baseUrl = window.location.href.split('#')[0].split('?')[0];
+            if (baseUrl.startsWith('file://')) baseUrl = 'https://mindcare.netlify.app/index.html';
+            const dummyLink = `${baseUrl}?scale=${activeScale.id}`;
+
+            navigator.clipboard.writeText(dummyLink).then(() => {
+                alert('已复制演示测评链接。请勿用于收集真实患者信息。');
+            }).catch(() => {
+                prompt("请手动复制链接:", dummyLink);
+            });
+        }
+
+        function simulatePatientStart() {
+            activePatientName = document.getElementById('share-patient-name').value.trim() || '匿名来访者';
+            closeShareModal();
+            startPatientQuiz();
+        }
+
+        function startPatientQuiz() {
+            currentQIdx = 0;
+            patientAnswers = new Array(activeScale.questions.length).fill(null);
+
+            document.getElementById('quiz-patient-tag').innerText = `受邀评估来访者：${activePatientName}`;
+            document.getElementById('quiz-scale-title').innerText = activeScale.name;
+            document.getElementById('quiz-q-total').innerText = activeScale.questions.length;
+            document.getElementById('quiz-instruction').innerText = activeScale.instruction;
+
+            renderQuizQuestion();
+            showSection('patient-quiz');
+        }
+
+        function renderQuizQuestion() {
+            document.getElementById('quiz-q-current').innerText = currentQIdx + 1;
+            const pct = Math.round(((currentQIdx + 1) / activeScale.questions.length) * 100);
+            document.getElementById('quiz-progress-percent').innerText = `${pct}%`;
+            document.getElementById('quiz-progress-fill').style.width = `${pct}%`;
+
+            document.getElementById('quiz-question-text').innerText = `${currentQIdx + 1}. ${activeScale.questions[currentQIdx]}`;
+            document.getElementById('quiz-btn-prev').disabled = currentQIdx === 0;
+
+            const wrapper = document.getElementById('quiz-options-wrapper');
+            wrapper.innerHTML = '';
+
+            activeScale.options.forEach((opt, idx) => {
+                const isSelected = patientAnswers[currentQIdx] === idx;
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left p-4 rounded-xl text-xs sm:text-sm font-medium glass-card flex justify-between items-center ${isSelected ? 'border-sky-400 bg-sky-500/20 font-bold text-white' : 'text-slate-200'}`;
+                btn.onclick = () => selectQuizOption(idx);
+                btn.innerHTML = `
+                    <span>${opt.label}</span>
+                    <i class="fa-solid ${isSelected ? 'fa-circle-check text-sky-400' : 'fa-circle text-white/20'}"></i>
+                `;
+                wrapper.appendChild(btn);
+            });
+        }
+
+        function selectQuizOption(optIdx) {
+            patientAnswers[currentQIdx] = optIdx;
+            if (currentQIdx < activeScale.questions.length - 1) {
+                currentQIdx++;
+                renderQuizQuestion();
+            } else {
+                finishQuiz();
+            }
+        }
+
+        function prevQuestion() {
+            if (currentQIdx > 0) {
+                currentQIdx--;
+                renderQuizQuestion();
+            }
+        }
+
+        function finishQuiz() {
+            let totalScore = 0;
+            patientAnswers.forEach((optIdx, qIdx) => {
+                if (optIdx !== null) {
+                    totalScore += activeScale.options[optIdx].score;
+                }
+            });
+
+            let matchedEval = activeScale.evaluations[0];
+            for (let ev of activeScale.evaluations) {
+                if (totalScore >= ev.min && totalScore <= ev.max) {
+                    matchedEval = ev;
+                    break;
+                }
+            }
+
+            const record = {
+                id: 'REC_' + Date.now(),
+                scaleName: activeScale.name,
+                patientName: activePatientName,
+                score: totalScore,
+                maxScore: activeScale.options[activeScale.options.length - 1].score * activeScale.questions.length,
+                severity: matchedEval.severity,
+                description: matchedEval.description,
+                recs: matchedEval.recs,
+                timestamp: new Date().toLocaleDateString()
+            };
+
+            savePatientRecord(record);
+            renderPatientRecords();
+            displayReport(record);
+            showSection('report');
+        }
+
+        function savePatientRecord(rec) {
+            let records = JSON.parse(localStorage.getItem('mindcare_records') || '[]');
+            records.unshift(rec);
+            localStorage.setItem('mindcare_records', JSON.stringify(records));
+        }
+
+        function renderPatientRecords() {
+            const records = JSON.parse(localStorage.getItem('mindcare_records') || '[]');
+            const container = document.getElementById('patient-records-list');
+
+            document.getElementById('stat-total-sent').innerText = records.length + 5;
+            document.getElementById('stat-completed').innerText = records.length;
+
+            if (records.length === 0) {
+                container.innerHTML = `<div class="text-center py-10 text-xs text-slate-500">暂无回收的患者答题记录</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            records.forEach(rec => {
+                container.innerHTML += `
+                    <div class="glass-card rounded-2xl p-4 flex justify-between items-center border border-white/10">
+                        <div class="space-y-1">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs font-bold text-white">${rec.patientName}</span>
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-300">${rec.scaleName}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400">结果: <strong class="text-amber-300">${rec.severity}</strong> (${rec.score}分) | ${rec.timestamp}</p>
+                        </div>
+                        <button onclick='displayReport(${JSON.stringify(rec)})' class="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-sky-600 text-xs text-white font-medium transition-all">
+                            查看报告
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function clearAllData() {
+            if (confirm('确定要清空所有来访者测评记录吗？')) {
+                localStorage.removeItem('mindcare_records');
+                renderPatientRecords();
+            }
+        }
+
+        function displayReport(rec) {
+            document.getElementById('rep-scale-name').innerText = rec.scaleName + ' 临床报告';
+            document.getElementById('rep-patient-name').innerText = rec.patientName;
+            document.getElementById('rep-timestamp').innerText = rec.timestamp;
+            document.getElementById('rep-score-num').innerText = rec.score;
+            document.getElementById('rep-severity-tag').innerText = rec.severity;
+            document.getElementById('rep-description').innerText = rec.description;
+
+            const recsGrid = document.getElementById('rep-recs-grid');
+            recsGrid.innerHTML = '';
+            rec.recs.forEach(r => {
+                recsGrid.innerHTML += `<div class="p-3 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-200"><i class="fa-solid fa-check text-emerald-400 mr-2"></i>${r}</div>`;
+            });
+        }
+    </script>
+</body>
+</html>
